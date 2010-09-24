@@ -16,8 +16,7 @@ References
 
 Dependencies
 =============
-FuXi (RDFLib < 3a)
-
+FuXi 1.1 (RDFLib > 2.4.0 < 3a)
 
 """
 import rdflib
@@ -25,23 +24,34 @@ import copy
 from rdflib.Graph import ConjunctiveGraph
 from rdflib import Namespace, URIRef
 import datetime
-import os, pkg_resources
 
+RDF = Namespace('http://www.w3.org/1999/02/22-rdf-syntax-ns#')
+RDFS = Namespace('http://www.w3.org/2000/01/rdf-schema#')
+SYS = Namespace('http://cpoe.keg.unmc.edu/ns/systems#')
+DOAP = Namespace('http://usefulinc.com/ns/doap#')
+NAMESPACES = {
+        'rdf': RDF,
+        'rdfs': RDFS,
+        'sys': SYS,
+        'doap': DOAP,
+}
 
-
-
-def load_graph(schema, components, additional=None, debug=False):
+def load_graph(schema, data, additional=None, debug=False):
     """
+    Load the specified schema, extract rules,
+    load data and any additional ontologies,
+    and infer facts.
 
     :param schema: Schema Graph
-    :type schema: `rdflib.Graph`
+    :type schema: `rdflib.ConjunctiveGraph`
     :param components: Component Graph
-    :type components: `rdflib.Graph`
+    :type components: `rdflib.ConjunctiveGraph`
     :param debug: Whether to print debugging information
     :type debug: bool
 
-    :returns: Schema U Schema.inferred U Components
-    :rtype: `rdflib.Graph`
+    :returns: (Graph w/ inferred facts, Graph w/o inferred facts)
+    :rtype: tuple(`rdflib.ConjunctiveGraph`,
+                  `rdflib.ConjunctiveGraph`)
 
     """
     from FuXi.Rete.Util import generateTokenSet
@@ -52,7 +62,7 @@ def load_graph(schema, components, additional=None, debug=False):
     NormalFormReduction(schema)
     network.setupDescriptionLogicProgramming(schema)
     network.feedFactsToAdd(generateTokenSet(schema))
-    network.feedFactsToAdd(generateTokenSet(components))
+    network.feedFactsToAdd(generateTokenSet(data))
     
     len_additional = 0
     if additional:
@@ -72,7 +82,7 @@ def load_graph(schema, components, additional=None, debug=False):
             print f
 
     len_schema = len(schema)
-    len_components = len(components)
+    len_data = len(data)
     len_inferred = len(network.inferredFacts)
 
     print "==================="
@@ -85,21 +95,21 @@ def load_graph(schema, components, additional=None, debug=False):
     print ".. list-table::"
     print "   :header-rows: 1"
     print ""
-    print rest_list_table_row(["Graph","Count"])
+    print rest_list_table_row(["Graph","Triple Count"])
     print rest_list_table_row(["Schema", len_schema])
-    print rest_list_table_row(["Components", len_components])
+    print rest_list_table_row(["Data", len_data])
     print rest_list_table_row(["Additional", len_additional])
     print rest_list_table_row(["------","------"])
     print rest_list_table_row(["Inferred", len_inferred])
     print rest_list_table_row(["------","------"])
     print rest_list_table_row(["Subtotal",
-        len_schema + len_components + len_inferred + len_additional])
+        len_schema + len_data + len_inferred + len_additional])
     print rest_list_table_row(["------","------"])
 
 
 
     gall = schema
-    gall += components
+    gall += data
     if additional:
         for g in additional:
             gall += g
@@ -113,52 +123,59 @@ def load_graph(schema, components, additional=None, debug=False):
 
     return gall_inferred, gall
 
-
-SCHEMA=('/home/wturner/workspace/webcpoe/src/WebCPOE/docs/system/kb/schema-protege_mangled.turtle.owl', 'n3')
-DATA=('/home/wturner/workspace/webcpoe/src/WebCPOE/docs/system/kb/components.n3', 'n3')
-DOAP_LOCAL=('/home/wturner/workspace/webcpoe/src/WebCPOE/docs/system/kb/doap.rdf.xml', 'xml')
-RDF_LOCAL=('/home/wturner/workspace/webcpoe/src/WebCPOE/docs/system/kb/22-rdf-syntax-ns.rdf.xml', 'xml')
-RDFS_LOCAL=('/home/wturner/workspace/webcpoe/src/WebCPOE/docs/system/kb/rdf-schema.rdf.xml', 'xml')
-
-
-RDF = rdflib.Namespace('http://www.w3.org/1999/02/22-rdf-syntax-ns#')
-RDFS = rdflib.Namespace('http://www.w3.org/2000/01/rdf-schema#')
-SYS = rdflib.Namespace('http://cpoe.keg.unmc.edu/ns/systems#')
-DOAP = rdflib.Namespace('http://usefulinc.com/ns/doap#')
-NAMESPACES = {
-        'rdf': RDF,
-        'rdfs': RDFS,
-        'sys': SYS,
-        'doap': DOAP,
-}
-
 def main():
+    """
+    console_entrypoint for the bobcat utility
+    """
     import optparse
 
-    prs = optparse.OptionParser()
+    prs = optparse.OptionParser(
+        usage =('%prog -s <schema> <fmt>'
+                ' -d <data> <fmt>'
+                ' [-a <path> <fmt>]'
+                ' [-o <path> ]'),
+        description = "A semantic documentation tool"
+    )
 
-    prs.add_option('-l','--load',dest='ontology_paths', action="append",nargs=2,
-        help="Load the specified <path> and <format>")
+    prs.add_option('-s','--schema',dest='schema', action='store', nargs=2,
+            help='Load the specified tBox/Schema Ontology ')
+    prs.add_option('-d','--data',dest='data',action='store',nargs=2,
+            help='Load the specified data ontology ')
+    prs.add_option('-a','--add',dest='additional', action="append",nargs=2,
+        help="Load the specified additional onotology",
+        default=[])
+        
+    # Not Yet Implemented
+    prs.add_option('-o','--output-file',dest='output',action='store',
+        help="Destination file to write output to")
 
     (opts,args) = prs.parse_args()
 
-    if opts.ontology_paths:
-        raise NotImplementedError
+    if not (opts.schema and opts.data):
+        print "At a minimum, both a schema and data ontology must be specified"
+        exit(1)
     else:
-        gschema = ConjunctiveGraph().parse(SCHEMA[0],format=SCHEMA[1])
-        gdata = ConjunctiveGraph().parse(DATA[0],format=DATA[1])
-        gdoap = ConjunctiveGraph().parse(DOAP_LOCAL[0],format=DOAP_LOCAL[1])
-        grdf = ConjunctiveGraph().parse(RDF_LOCAL[0], format=RDF_LOCAL[1])
-        grdfs = ConjunctiveGraph().parse(RDFS_LOCAL[0], format=RDFS_LOCAL[1])
+        # Load graphs
+        gschema = ConjunctiveGraph().parse(
+            opts.schema[0],
+            format=opts.schema[1])
+        gdata = ConjunctiveGraph().parse(
+            opts.data[0],
+            format=opts.data[1])
+
+        additional = []
+        for (path,format) in opts.additional:
+            additional.append(
+                ConjunctiveGraph().parse(path, format=format)
+            )
 
         # Add inferred facts
-        gall_inferred, gall = load_graph(gschema, gdata,
-                                        additional=[gdoap,
-                                                    grdf,
-                                                    grdfs])
+        gall_inferred, gall = load_graph(gschema, gdata, additional=additional)
 
+        # Print as ReStructuredText
         print_rest(gall_inferred, gall)
-        return gall_inferred
+
+    return
 
 # FIXME: REST injection
 def rest_format_predicate(uri=None, label=None):
@@ -199,7 +216,14 @@ None
 ]
 def format_component_row(row):
     """
+    Format a component attribute row
 
+    :param row: (predicate, predicate_label, object, object_label)
+    :type row: tuple
+
+    :returns: None if the row should be filtered out. Otherwise a
+        ReStructuredText representation of the row
+    :rtype: None or str
     """
     (p, p_label, o, o_label) = row
     if p_label and p_label.language is not None and p_label.language != "en":
@@ -215,13 +239,18 @@ def format_component_row(row):
 
 def rest_list_table(query,formatter,name=None):
     """
-    Generate a formatted ReStructuredText List-Table y formatting 'rows' in query
-    with formatter
+    Generate a formatted ReStructuredText List-Table y formatting the 'rows'
+    in query with the specified formatter
 
     :param query: [(predicate, predicate_label,
                     object, object_label),...]
     :type query: list
+    :param formatter: callable that returns a string or False for each row
+    :type formatter: callable
+    :param name: Optional list-table name
+    :type name: str
 
+    :returns: None
     """
 
     print ".. list-table:: %s" % name or ''
@@ -236,10 +265,17 @@ def rest_list_table(query,formatter,name=None):
             print rest_list_table_row(formatted, indent=3)
 
 
-
 def print_rest(ginferred, gall):
+    """
+    Given a graph, print a ReStructuredText summary to sys.stdout
 
-    #project_names = dict(get_project_names(ginferred))
+    :param ginferred: Graph including inferred facts
+    :type ginferred: `rdflib.ConjunctiveGraph`
+    :param gall: Graph not including inferred facts
+    :type gall: `rdflib.ConjunctiveGraph`
+
+    :returns: None
+    """
 
     print ""
     print "Components"
@@ -277,11 +313,6 @@ def print_rest(ginferred, gall):
         rest_list_table(query, format_component_row)
 
     return None
-
-def get_project_names(gall):
-    for n in gall.triples((None, DOAP['name'], None)):
-        yield n[0], n[2]
-
 
 
 if __name__=="__main__":

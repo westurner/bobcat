@@ -19,8 +19,13 @@ setup(name='bobcat',
       zip_safe=False,
       install_requires=[
           # -*- Extra requirements: -*-
+          #'FuXi'==1.1,
+            # pip install -e hg+https://fuxi.googlecode.com/hg/#egg=FuXi
+            #'http://pypi.python.org/packages/source/F/FuXi/FuXi-1.1.production.tar.gz#md5=34ed6ff38785ae2609ba7dbff8051366',
       ],
-      entry_points="""
-      # -*- Entry points: -*-
-      """,
+      entry_points={
+          'console_scripts':[
+                'bobcat = bobcat:main',
+              ],
+          },
       )
