@@ -19,15 +19,14 @@ Dependencies
 FuXi 1.1 (RDFLib > 2.4.0 < 3a)
 
 """
-import rdflib
 import copy
 from rdflib.Graph import ConjunctiveGraph
-from rdflib import Namespace, URIRef
+from rdflib import Namespace #, URIRef
 import datetime
 
 RDF = Namespace('http://www.w3.org/1999/02/22-rdf-syntax-ns#')
 RDFS = Namespace('http://www.w3.org/2000/01/rdf-schema#')
-SYS = Namespace('http://cpoe.keg.unmc.edu/ns/systems#')
+SYS = Namespace('http://ns.ponykeg/ns/systems#')
 DOAP = Namespace('http://usefulinc.com/ns/doap#')
 NAMESPACES = {
         'rdf': RDF,
@@ -59,16 +58,22 @@ def load_graph(schema, data, additional=None, debug=False):
     from FuXi.Rete.RuleStore import SetupRuleStore
     rule_store, rule_graph, network = SetupRuleStore(makeNetwork=True)
 
+    additional_schema = ConjunctiveGraph()
+    len_additional = 0
+    if additional:
+        for g in additional:
+            additional_schema += g
+            len_additional += len(g)
+
+    len_schema = len(schema)
+    len_data = len(data)
+
+    schema += additional_schema
+
     NormalFormReduction(schema)
     network.setupDescriptionLogicProgramming(schema)
     network.feedFactsToAdd(generateTokenSet(schema))
     network.feedFactsToAdd(generateTokenSet(data))
-    
-    len_additional = 0
-    if additional:
-        for g in additional:
-            network.feedFactsToAdd(generateTokenSet(g))
-            len_additional += len(g)
 
     if debug:
         print network
@@ -81,8 +86,6 @@ def load_graph(schema, data, additional=None, debug=False):
         for f in network.inferredFacts:
             print f
 
-    len_schema = len(schema)
-    len_data = len(data)
     len_inferred = len(network.inferredFacts)
 
     print "==================="
@@ -97,14 +100,14 @@ def load_graph(schema, data, additional=None, debug=False):
     print ""
     print rest_list_table_row(["Graph","Triple Count"])
     print rest_list_table_row(["Schema", len_schema])
-    print rest_list_table_row(["Data", len_data])
     print rest_list_table_row(["Additional", len_additional])
-    print rest_list_table_row(["------","------"])
+    print rest_list_table_row(["Data", len_data])
+    print rest_list_table_row(["",""])
     print rest_list_table_row(["Inferred", len_inferred])
-    print rest_list_table_row(["------","------"])
+    print rest_list_table_row(["",""])
     print rest_list_table_row(["Subtotal",
         len_schema + len_data + len_inferred + len_additional])
-    print rest_list_table_row(["------","------"])
+    print rest_list_table_row(["",""])
 
 
 
@@ -144,7 +147,7 @@ def main():
     prs.add_option('-a','--add',dest='additional', action="append",nargs=2,
         help="Load the specified additional onotology",
         default=[])
-        
+
     # Not Yet Implemented
     prs.add_option('-o','--output-file',dest='output',action='store',
         help="Destination file to write output to")
@@ -239,12 +242,12 @@ def format_component_row(row):
 
 def rest_list_table(query,formatter,name=None):
     """
-    Generate a formatted ReStructuredText List-Table y formatting the 'rows'
+    Generate a formatted ReStructuredText List-Table by formatting the 'rows'
     in query with the specified formatter
 
     :param query: [(predicate, predicate_label,
                     object, object_label),...]
-    :type query: list
+    :type query: list(tuple)
     :param formatter: callable that returns a string or False for each row
     :type formatter: callable
     :param name: Optional list-table name
