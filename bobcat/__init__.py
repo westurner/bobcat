@@ -20,7 +20,8 @@ FuXi 1.1 (RDFLib > 2.4.0 < 3a)
 
 """
 import copy
-from rdflib.Graph import ConjunctiveGraph
+import rdflib; rdflib
+from rdflib import ConjunctiveGraph
 from rdflib import Namespace #, URIRef
 import datetime
 
